@@ -1,9 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-600 selection:text-white;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    @apply bg-[#FAF8F5] text-slate-900 antialiased selection:bg-amber-400 selection:text-slate-950;
   }
+}
+
+/* Premium Gold & Warm Theme Accents */
+.btn-gold {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #0F172A;
+  font-weight: 700;
+  box-shadow: 0 4px 14px 0 rgba(217, 119, 6, 0.25);
+  transition: all 0.2s ease-in-out;
+}
+.btn-gold:hover {
+  background: linear-gradient(135deg, #FBBF24 0%, #D97706 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px 0 rgba(217, 119, 6, 0.35);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Subtle micro-animations and scrollbar */
@@ -12,12 +34,12 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #e2e8f0;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #cbd5e1;
 }
