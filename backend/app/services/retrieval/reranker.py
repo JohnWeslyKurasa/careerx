@@ -1,48 +1,69 @@
 """
-Cross-Encoder Reranker Service for CAREERX.
-Provides high-precision second-stage reranking over top candidate evidence.
+OpenAI Embeddings-based Reranker for CAREERX.
+Replaces the sentence-transformers CrossEncoder with cosine similarity over
+OpenAI text-embedding-3-small vectors. Vercel-compatible: no local model.
 """
 import logging
 from typing import List, Tuple
+
 import numpy as np
+
+from backend.app.services.retrieval.embedder import embedder_service
 
 logger = logging.getLogger("careerx.retrieval.reranker")
 
-DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
 
 class CrossEncoderReranker:
-    """Singleton wrapper around CrossEncoder."""
+    """
+    Singleton reranker using OpenAI embeddings + cosine similarity.
+    Drop-in replacement for the previous CrossEncoder-based reranker.
+    The (query, passage) relevance score is computed as cosine similarity
+    between their respective embedding vectors.
+    """
 
     _instance = None
-    _model = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(CrossEncoderReranker, cls).__new__(cls)
         return cls._instance
 
-    def _load_model(self):
-        if self._model is None:
-            from sentence_transformers import CrossEncoder
-
-            logger.info(f"Loading Cross-Encoder model '{DEFAULT_RERANKER_MODEL}'...")
-            self._model = CrossEncoder(DEFAULT_RERANKER_MODEL)
-            logger.info("Cross-Encoder model successfully loaded.")
-
     def predict_scores(self, pairs: List[Tuple[str, str]]) -> List[float]:
         """
-        Given list of (query, passage) pairs, computes calibrated relevance scores in [0.0, 1.0].
-        Applies logistic sigmoid to raw logits.
+        Given a list of (query, passage) pairs, computes relevance scores in [0.0, 1.0]
+        using cosine similarity between OpenAI embeddings.
         """
         if not pairs:
             return []
-        self._load_model()
-        raw_scores = self._model.predict(pairs, show_progress_bar=False)
-        scores = np.array(raw_scores, dtype=np.float32)
-        # Logistic sigmoid calibration
-        probs = 1.0 / (1.0 + np.exp(-scores))
-        return [float(x) for x in probs]
+
+        # Deduplicate texts to minimise API calls
+        queries = [p[0] for p in pairs]
+        passages = [p[1] for p in pairs]
+        all_texts = queries + passages
+
+        try:
+            all_vectors = embedder_service.encode_batch(all_texts)
+            query_vecs = all_vectors[: len(queries)]
+            passage_vecs = all_vectors[len(queries) :]
+
+            scores = []
+            for q_vec, p_vec in zip(query_vecs, passage_vecs):
+                q = np.array(q_vec, dtype=np.float32)
+                p = np.array(p_vec, dtype=np.float32)
+                norm_q = np.linalg.norm(q)
+                norm_p = np.linalg.norm(p)
+                if norm_q == 0.0 or norm_p == 0.0:
+                    scores.append(0.0)
+                else:
+                    cos = float(np.dot(q, p) / (norm_q * norm_p))
+                    # Normalise from [-1, 1] to [0, 1]
+                    scores.append(max(0.0, min(1.0, (cos + 1.0) / 2.0)))
+            return scores
+
+        except Exception as exc:
+            logger.error(f"Reranker scoring failed: {exc}")
+            return [0.0] * len(pairs)
 
 
 reranker_service = CrossEncoderReranker()
+
